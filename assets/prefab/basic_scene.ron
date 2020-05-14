@@ -1,0 +1,97 @@
+#![enable(implicit_some)]
+
+Prefab (
+  entities: [
+    // Camera
+    (
+      data: (
+        transform: (
+          translation: (0.0, 1.5, 0.0),
+          rotation: (-0.13, 0.0, 0.0, 0.99),
+        ),
+        camera: Perspective(
+          aspect: 1.7777777778,
+          fovy: 1.0471975512,
+          znear: 0.1,
+          zfar: 2000.0,
+        ),
+        auto_fov: (),
+        control_tag: (),
+      )
+    ),
+    // Light
+    (
+      data: (
+        light: (
+          ambient_color: ((0.1, 0.1, 0.1, 1.0)),
+          light: Directional((
+            color: (1.0, 1.0, 1.0),
+            direction: [-0.5, -0.75, -1.0],
+            intensity: 0.5,
+          )),
+        ),
+      )
+    ),
+    // Light
+    (
+      data: (
+        light: (
+          ambient_color: ((0.1, 0.1, 0.1, 1.0)),
+          light: Directional((
+            color: (1.0, 1.0, 1.0),
+            direction: [0.5, -0.75, 1.0],
+            intensity: 0.1,
+          )),
+        ),
+      )
+    ),
+    // Blue Cube
+    (
+      data: (
+        transform: (
+          translation: (0.0, 0.0, -4.0),
+          scale: (0.5, 0.5, 0.5),
+        ),
+        graphics: (
+          mesh: Asset(File("mesh/cube.obj", ("OBJ", ()))),
+          material: (
+            albedo: Generate(Srgba(0.0, 0.0, 1.0, 1.0)),
+          )
+        ),
+      )
+    ),
+    // Red Sphere
+    (
+      data: (
+        transform: (
+          translation: (0.0, 1.0, -4.0),
+          scale: (0.5, 0.5, 0.5),
+        ),
+        graphics: (
+          mesh: Shape((shape: Sphere(32, 32))),
+          material: (
+            albedo: Generate(Srgba(1.0, 0.0, 0.0, 1.0)),
+          ),
+        ),
+      )
+    ),
+    // Sword
+    (
+      data: (
+        transform: (
+          translation: (1.0, 0.0, -4.0),
+        ),
+        gltf: File("mesh/sword.glb", ()),
+      )
+    ),
+    // Heart
+    (
+      data: (
+        transform: (
+          translation: (-1.0, 0.0, -4.0),
+        ),
+        gltf: File("mesh/heart.glb", ()),
+      )
+    ),
+  ]
+)

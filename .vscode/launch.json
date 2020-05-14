@@ -1,0 +1,47 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "Debug",
+      "cargo": {
+        "args": [
+          "build",
+          "--bin=gaemstone",
+          "--package=gaemstone"
+        ],
+        "filter": {
+          "name": "gaemstone",
+          "kind": "bin"
+        }
+      },
+      "args": [],
+      "cwd": "${workspaceFolder}",
+      "env": {
+        // This appears to be necessary, or else the
+        // application root will be in ./target/debug/
+        "CARGO_MANIFEST_DIR": "${workspaceFolder}"
+      }
+    },
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "Debug Unit Tests",
+      "cargo": {
+        "args": [
+          "test",
+          "--no-run",
+          "--bin=gaemstone",
+          "--package=gaemstone"
+        ],
+        "filter": {
+          "name": "gaemstone",
+          "kind": "bin"
+        }
+      },
+      "args": [],
+      "cwd": "${workspaceFolder}"
+    }
+  ]
+}
