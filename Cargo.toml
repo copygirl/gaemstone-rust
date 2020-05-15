@@ -5,7 +5,8 @@ version = "0.1.0"
 edition = "2018"
 
 [dependencies]
-rand = "0.7"
+bitvec = "0.17.4"
+rand   = "0.7"
 amethyst = { version = "0.15.0", features = ["gltf"] }
 log      = { version = "0.4.8", features = ["serde"] }
 serde    = { version = "1.0", features = ["derive"] }

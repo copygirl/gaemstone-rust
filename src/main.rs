@@ -26,9 +26,13 @@ use amethyst::{
   Error,
 };
 use log::{error, info};
-use rand;
+use rand::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::marker::PhantomData;
+
+use bloxel::{ChunkPaletteStorage, Facing};
+
+mod bloxel;
 
 const CLEAR_COLOR: [f32; 4] = [0.1, 0.0, 0.3, 1.0];
 
@@ -207,21 +211,23 @@ impl<'a, B: Backend> System<'a> for VoxelMeshGenerator<B> {
       &material_storage,
     );
 
+    let mut rng = thread_rng();
+    let mut storage = ChunkPaletteStorage::<u8>::new(16, 16, 16);
+    for x in 0..storage.width() {
+      for y in 0..storage.height() {
+        for z in 0..storage.depth() {
+          storage.set(x, y, z, rng.gen_range(0, 16));
+        }
+      }
+    }
+
     let mut indices = vec![];
     let mut pos = vec![];
     let mut norm = vec![];
     let mut tex = vec![];
 
-    let triangle_indices = [0, 1, 3, 1, 2, 3];
-    let normals_per_facing = [
-      Normal([1.0, 0.0, 0.0]),  // +X
-      Normal([-1.0, 0.0, 0.0]), // -X
-      Normal([0.0, 1.0, 0.0]),  // +Y
-      Normal([0.0, -1.0, 0.0]), // -Y
-      Normal([0.0, 0.0, 1.0]),  // +Z
-      Normal([0.0, 0.0, -1.0]), // -Z
-    ];
-    let offsets_per_facing = [
+    static TRIANGLE_INDICES: [u16; 6] = [0, 1, 3, 1, 2, 3];
+    static OFFSETS_PER_FACING: [[[u32; 3]; 4]; 6] = [
       [[1, 1, 1], [1, 0, 1], [1, 0, 0], [1, 1, 0]], // +X
       [[0, 1, 0], [0, 0, 0], [0, 0, 1], [0, 1, 1]], // -X
       [[1, 1, 0], [0, 1, 0], [0, 1, 1], [1, 1, 1]], // +Y
@@ -230,24 +236,45 @@ impl<'a, B: Backend> System<'a> for VoxelMeshGenerator<B> {
       [[1, 1, 0], [1, 0, 0], [0, 0, 0], [0, 1, 0]], // +Z
     ];
 
-    for x in 0..16 {
-      for y in 0..16 {
-        for z in 0..16 {
-          if rand::random() {
+    for x in 0..storage.width() {
+      for y in 0..storage.height() {
+        for z in 0..storage.depth() {
+          if storage.get(x, y, z) == 0 {
             continue;
           }
-          for face in 0..6 {
-            for i in &triangle_indices {
+          for face in Facing::iter_all() {
+            // Skip drawing this face if there's another block in that direction.
+            let (fx, fy, fz) = face.into();
+            {
+              let nx = x as i32 + fx;
+              let ny = y as i32 + fy;
+              let nz = z as i32 + fz;
+              if (nx & !0xF) == 0 && (ny & !0xF) == 0 && (nz & !0xF) == 0 {
+                if storage.get(nx as u32, ny as u32, nz as u32) > 0 {
+                  continue;
+                }
+              }
+            }
+
+            for i in &TRIANGLE_INDICES {
               indices.push(pos.len() as u16 + i);
             }
+            let offsets = OFFSETS_PER_FACING[match face {
+              Facing::East => 0,
+              Facing::West => 1,
+              Facing::Up => 2,
+              Facing::Down => 3,
+              Facing::South => 4,
+              Facing::North => 5,
+            }];
             for i in 0..4 {
-              let offset = offsets_per_facing[face][i];
+              let offset = offsets[i];
               pos.push(Position([
                 (x + offset[0]) as f32,
                 (y + offset[1]) as f32,
                 (z + offset[2]) as f32,
               ]));
-              norm.push(normals_per_facing[face]);
+              norm.push(Normal([fx as f32, fy as f32, fz as f32]));
               tex.push(TexCoord(match i {
                 0 => [0.0, 0.0],
                 1 => [0.0, 1.0],
