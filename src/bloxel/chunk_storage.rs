@@ -1,5 +1,5 @@
 use bitvec::{slice::AsBits, vec::BitVec};
-use std::convert::TryInto;
+use std::{convert::TryInto, error::Error, fmt};
 
 /// Palette based storage for arbitrary data in a chunk format which can be of varied size.
 /// Based on ["Palette-based compression for chunked discrete voxel data"][post] by /u/Longor1996.
@@ -16,13 +16,16 @@ use std::convert::TryInto;
 /// let mut storage = ChunkPaletteStorage::<u8>::new(16, 16, 16);
 /// assert_eq!(storage.get(0, 0, 0), Default::default());
 ///
-/// storage.set(4, 8, 10, 100u8);
-/// storage.set(8, 16, 12, 50u8);
-/// assert_eq!(storage.get(4, 8, 10), 100u8);
-/// assert_eq!(storage.get(8, 16, 12), 50u8);
+/// storage.set(4, 8, 10, 100u8).unwrap();
+/// storage.set(8, 14, 12, 50u8).unwrap();
+/// assert_eq!(storage.get(4, 8, 10).unwrap(), 100u8);
+/// assert_eq!(storage.get(8, 14, 12).unwrap(), 50u8);
 ///
-/// storage.set(4, 8, 10, 0u8);
-/// assert_eq!(storage.get(4, 8, 10), 0u8);
+/// storage.set(4, 8, 10, 0u8).unwrap();
+/// assert_eq!(storage.get(4, 8, 10).unwrap(), 0u8);
+///
+/// assert!(storage.get(8, 16, 8).is_err());
+/// assert!(storage.get(0, -1, 0).is_err());
 /// ```
 pub struct ChunkPaletteStorage<T: Default + Copy + Eq> {
   /// Method used for indexing into the data array.
@@ -39,17 +42,6 @@ pub struct ChunkPaletteStorage<T: Default + Copy + Eq> {
   palette: Vec<PaletteEntry<T>>,
   /// The number of palettes in `palette` currently in use (where `ref_count > 0`).
   used_palettes: usize,
-}
-
-enum ChunkIndexing {
-  PowerOfTwo(u32),
-  Other(u32, u32, u32),
-}
-
-#[derive(Default, Copy, Clone)]
-struct PaletteEntry<T: Default + Copy + Eq> {
-  value: T,
-  ref_count: usize,
 }
 
 impl<T: Default + Copy + Eq> ChunkPaletteStorage<T> {
@@ -101,8 +93,7 @@ impl<T: Default + Copy + Eq> ChunkPaletteStorage<T> {
     }
   }
 
-  /// Gets the total amount of "blocks" contained
-  /// within this storage (`width*height*depth`).
+  /// Gets the total amount of "blocks" contained within this storage (`width*height*depth`).
   pub fn size(&self) -> usize {
     match self.indexing {
       ChunkIndexing::PowerOfTwo(p) => (1usize << p).pow(3),
@@ -110,19 +101,24 @@ impl<T: Default + Copy + Eq> ChunkPaletteStorage<T> {
     }
   }
 
-  pub fn get(&self, x: u32, y: u32, z: u32) -> T {
-    let index = self.get_index(x, y, z) * self.indices_len;
-    self.palette[self.get_palette_index(index)].value
+  /// Attempts to get a value from this storage from the specified relative coordinates.
+  /// Returns `Err(ChunkBoundsError)` if the coordinates are outside the bounds of the storage.
+  pub fn get(&self, x: i32, y: i32, z: i32) -> Result<T, ChunkBoundsError> {
+    let index = self.get_index(x, y, z)? * self.indices_len;
+    let palette_index = self.get_palette_index(index);
+    Ok(self.palette[palette_index].value)
   }
 
-  pub fn set(&mut self, x: u32, y: u32, z: u32, value: T) {
-    let index = self.get_index(x, y, z) * self.indices_len;
+  /// Attempts to set a value from this storage at the specified relative coordinates.
+  /// Returns `Err(ChunkBoundsError)` if the coordinates are outside the bounds of the storage.
+  pub fn set(&mut self, x: i32, y: i32, z: i32, value: T) -> Result<(), ChunkBoundsError> {
+    let index = self.get_index(x, y, z)? * self.indices_len;
     let palette_index = self.get_palette_index(index);
     let mut current = &mut self.palette[palette_index];
 
     // If nothing changes, don't bother.
     if value == current.value {
-      return;
+      return Ok(());
     }
 
     // Reduce the `ref_count` in the current palette entry.
@@ -137,7 +133,7 @@ impl<T: Default + Copy + Eq> ChunkPaletteStorage<T> {
     if let Some(i) = self.palette.iter().position(|x| value == x.value) {
       self.set_palette_index(index, i);
       self.palette[i].ref_count += 1;
-      return;
+      return Ok(());
     }
 
     // Need to re-borrow `palette`, else we can't `iter()` on it earlier.
@@ -148,7 +144,7 @@ impl<T: Default + Copy + Eq> ChunkPaletteStorage<T> {
       current.value = value;
       current.ref_count = 1;
       self.used_palettes += 1;
-      return;
+      return Ok(());
     }
 
     // Get a free palette entry, expanding `palette` if needed.
@@ -159,6 +155,7 @@ impl<T: Default + Copy + Eq> ChunkPaletteStorage<T> {
     };
     self.set_palette_index(index, palette_index);
     self.used_palettes += 1;
+    Ok(())
   }
 
   /// Gets an unused palette entry, growing the `palette` vector if needed.
@@ -233,13 +230,27 @@ impl<T: Default + Copy + Eq> ChunkPaletteStorage<T> {
     slice.copy_from_slice(&value.bits()[0..self.indices_len]);
   }
 
-  fn get_index(&self, x: u32, y: u32, z: u32) -> usize {
-    assert!(x < self.width(), "x (={}) not < {}", x, self.width());
-    assert!(y < self.height(), "y (={}) not < {}", y, self.height());
-    assert!(z < self.depth(), "z (={}) not < {}", z, self.depth());
+  fn get_index(&self, x: i32, y: i32, z: i32) -> Result<usize, ChunkBoundsError> {
+    if match self.indexing {
+      ChunkIndexing::PowerOfTwo(p) => (x >> p) | (y >> p) | (z >> p) == 0,
+      ChunkIndexing::Other(w, h, d) => {
+        (x >= 0 && x < w as i32) && (y >= 0 && y < h as i32) && (z >= 0 && z < d as i32)
+      }
+    } {
+      // SAFETY: Coords were already bounds checked.
+      unsafe { Ok(self.get_index_unchecked(x, y, z)) }
+    } else {
+      Err(ChunkBoundsError {
+        index: (x, y, z),
+        bounds: (self.width(), self.height(), self.depth()),
+      })
+    }
+  }
+
+  unsafe fn get_index_unchecked(&self, x: i32, y: i32, z: i32) -> usize {
     match self.indexing {
       ChunkIndexing::PowerOfTwo(p) => x | (y << p) | (z << (p << 1)),
-      ChunkIndexing::Other(w, h, _) => x + y * w + z * w * h,
+      ChunkIndexing::Other(w, h, _) => x + y * w as i32 + z * w as i32 * h as i32,
     }
     .try_into()
     .unwrap()
@@ -254,4 +265,29 @@ fn integer_log2(mut i: u32) -> u32 {
     power += 1;
   }
   power
+}
+
+enum ChunkIndexing {
+  PowerOfTwo(u32),
+  Other(u32, u32, u32),
+}
+
+#[derive(Default, Copy, Clone)]
+struct PaletteEntry<T: Default + Copy + Eq> {
+  value: T,
+  ref_count: usize,
+}
+
+#[derive(Debug)]
+pub struct ChunkBoundsError {
+  index: (i32, i32, i32),
+  bounds: (u32, u32, u32),
+}
+
+impl Error for ChunkBoundsError {}
+
+impl fmt::Display for ChunkBoundsError {
+  fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    write!(f, "Index {:?} outside bounds {:?}", self.index, self.bounds)
+  }
 }

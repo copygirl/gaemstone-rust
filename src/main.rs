@@ -213,10 +213,10 @@ impl<'a, B: Backend> System<'a> for VoxelMeshGenerator<B> {
 
     let mut rng = thread_rng();
     let mut storage = ChunkPaletteStorage::<u8>::new(16, 16, 16);
-    for x in 0..storage.width() {
-      for y in 0..storage.height() {
-        for z in 0..storage.depth() {
-          storage.set(x, y, z, rng.gen_range(0, 16));
+    for x in 0..storage.width() as i32 {
+      for y in 0..storage.height() as i32 {
+        for z in 0..storage.depth() as i32 {
+          storage.set(x, y, z, rng.gen_range(0, 16)).unwrap();
         }
       }
     }
@@ -227,7 +227,7 @@ impl<'a, B: Backend> System<'a> for VoxelMeshGenerator<B> {
     let mut tex = vec![];
 
     static TRIANGLE_INDICES: [u16; 6] = [0, 1, 3, 1, 2, 3];
-    static OFFSETS_PER_FACING: [[[u32; 3]; 4]; 6] = [
+    static OFFSETS_PER_FACING: [[[i32; 3]; 4]; 6] = [
       [[1, 1, 1], [1, 0, 1], [1, 0, 0], [1, 1, 0]], // +X
       [[0, 1, 0], [0, 0, 0], [0, 0, 1], [0, 1, 1]], // -X
       [[1, 1, 0], [0, 1, 0], [0, 1, 1], [1, 1, 1]], // +Y
@@ -236,24 +236,20 @@ impl<'a, B: Backend> System<'a> for VoxelMeshGenerator<B> {
       [[1, 1, 0], [1, 0, 0], [0, 0, 0], [0, 1, 0]], // +Z
     ];
 
-    for x in 0..storage.width() {
-      for y in 0..storage.height() {
-        for z in 0..storage.depth() {
-          if storage.get(x, y, z) == 0 {
+    for x in 0..storage.width() as i32 {
+      for y in 0..storage.height() as i32 {
+        for z in 0..storage.depth() as i32 {
+          if storage.get(x, y, z).unwrap() == 0 {
             continue;
           }
           for face in Facing::iter_all() {
-            // Skip drawing this face if there's another block in that direction.
             let (fx, fy, fz) = face.into();
-            {
-              let nx = x as i32 + fx;
-              let ny = y as i32 + fy;
-              let nz = z as i32 + fz;
-              if (nx & !0xF) == 0 && (ny & !0xF) == 0 && (nz & !0xF) == 0 {
-                if storage.get(nx as u32, ny as u32, nz as u32) > 0 {
-                  continue;
-                }
-              }
+
+            // Skip drawing this face if there's another block in that direction.
+            // `get` returns `ChunkBoundsError` if coords are outside of the bounds of
+            // the storage, so we can make use of that to avoid checking this ourselves.
+            if storage.get(x + fx, y + fy, z + fz).unwrap_or_default() > 0 {
+              continue;
             }
 
             for i in &TRIANGLE_INDICES {
