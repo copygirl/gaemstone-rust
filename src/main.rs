@@ -36,6 +36,7 @@ use std::marker::PhantomData;
 use bloxel::{chunk::storage::*, chunk::*, Facing};
 
 mod bloxel;
+mod util;
 
 const CLEAR_COLOR: [f32; 4] = [0.1, 0.0, 0.3, 1.0];
 
