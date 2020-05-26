@@ -5,6 +5,7 @@
       "type": "lldb",
       "request": "launch",
       "name": "Debug",
+      "preLaunchTask": "${defaultBuildTask}",
       "cargo": {
         "args": [
           "build",
