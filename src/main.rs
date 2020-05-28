@@ -33,7 +33,10 @@ use rand::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::marker::PhantomData;
 
-use bloxel::{chunk::storage::*, chunk::*, Facing};
+use crate::bloxel::{
+  chunk::{storage::*, *},
+  Facing,
+};
 
 mod bloxel;
 mod util;
@@ -150,11 +153,14 @@ impl SimpleState for MainState {
           (chunk.pos.y * CHUNK_SIZE as i32) as f32,
           (chunk.pos.z * CHUNK_SIZE as i32) as f32,
         );
-        let mut storage = PaletteStorageImpl::<u8>::new(CHUNK_SIZE, CHUNK_SIZE, CHUNK_SIZE);
-        for x in 0..storage.bounds().width() as i32 {
-          for y in 0..storage.bounds().height() as i32 {
-            for z in 0..storage.bounds().depth() as i32 {
-              storage.set(x, y, z, rng.gen_range(0, 2)).unwrap();
+        let mut storage = PaletteStorageImpl::<u8>::new();
+        // TODO: Replace nested loop with single iterator that provides `(x, y, z, index)`?
+        for x in 0..CHUNK_LENGTH as i32 {
+          for y in 0..CHUNK_LENGTH as i32 {
+            for z in 0..CHUNK_LENGTH as i32 {
+              // SAFETY: Bounds should be safe due to loop only going over valid values.
+              let index = unsafe { Index::new_unchecked(x, y, z) };
+              storage.set(index, rng.gen_range(0, 2));
             }
           }
         }
@@ -268,10 +274,12 @@ impl<'a, B: Backend> System<'a> for BloxelMeshGenerator<B> {
         [[1, 1, 0], [1, 0, 0], [0, 0, 0], [0, 1, 0]], // +Z
       ];
 
-      for x in 0..storage.bounds().width() as i32 {
-        for y in 0..storage.bounds().height() as i32 {
-          for z in 0..storage.bounds().depth() as i32 {
-            if storage.get(x, y, z).unwrap() == 0 {
+      for x in 0..CHUNK_LENGTH as i32 {
+        for y in 0..CHUNK_LENGTH as i32 {
+          for z in 0..CHUNK_LENGTH as i32 {
+            // SAFETY: Bounds should be safe due to loop only going over valid values.
+            let index = unsafe { Index::new_unchecked(x, y, z) };
+            if storage.get(index) == 0 {
               continue;
             }
             for face in Facing::iter_all() {
@@ -280,7 +288,11 @@ impl<'a, B: Backend> System<'a> for BloxelMeshGenerator<B> {
               // Skip drawing this face if there's another block in that direction.
               // `get` returns `ChunkBoundsError` if coords are outside of the bounds of
               // the storage, so we can make use of that to avoid checking this ourselves.
-              if storage.get(x + fx, y + fy, z + fz).unwrap_or_default() > 0 {
+              if Index::new(x + fx, y + fy, z + fz)
+                .map(|index| storage.get(index))
+                .unwrap_or_default()
+                > 0
+              {
                 continue;
               }
 

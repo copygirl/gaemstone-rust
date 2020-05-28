@@ -58,12 +58,18 @@ impl ops::Sub<Facing> for BlockPos {
 
 #[derive(Copy, Clone)]
 pub enum Facing {
-  East,  // +X
-  West,  // -X
-  Up,    // +Y
-  Down,  // -Y
-  South, // +Z
-  North, // -Z
+  /// Towards `+X`.
+  East,
+  /// Towards `-X`.
+  West,
+  /// Towards `+Y`.
+  Up,
+  /// Towards `-Y`.
+  Down,
+  /// Towards `+Z`.
+  South,
+  /// Towards `-Z`.
+  North,
 }
 
 impl Facing {
