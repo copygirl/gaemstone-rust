@@ -10,28 +10,18 @@ use {
       loaders::load_from_srgb,
       palette::rgb::Srgb,
       rendy::mesh::{MeshBuilder, Normal, Position, TexCoord},
-      types::{Backend, Mesh, TextureData},
+      types::{Mesh, TextureData},
       Material, MaterialDefaults, Texture,
     },
   },
-  std::marker::PhantomData,
 };
 
-pub struct ChunkMeshGenerator<B> {
-  _backend: PhantomData<B>,
-}
-
-impl<B> Default for ChunkMeshGenerator<B> {
-  fn default() -> Self {
-    ChunkMeshGenerator {
-      _backend: PhantomData,
-    }
-  }
-}
+#[derive(Default)]
+pub struct ChunkMeshGenerator;
 
 pub struct WhiteMaterial(Handle<Material>);
 
-impl<'a, B: Backend> System<'a> for ChunkMeshGenerator<B> {
+impl<'a> System<'a> for ChunkMeshGenerator {
   type SystemData = (
     Entities<'a>,
     ReadExpect<'a, Loader>,

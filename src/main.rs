@@ -63,7 +63,7 @@ fn main() -> Result<(), Error> {
       &["scene_loader"],
     )
     .with(AutoFovSystem::new(), "auto_fov", &["scene_loader"])
-    .with(ChunkMeshGenerator::<DefaultBackend>::default(), "", &[])
+    .with(ChunkMeshGenerator::default(), "", &[])
     .with_bundle(
       InputBundle::<StringBindings>::new().with_bindings_from_file(&config_path_bindings)?,
     )?
