@@ -41,9 +41,9 @@ impl<'a, B: Backend> System<'a> for ChunkMeshGenerator<B> {
     ReadExpect<'a, AssetStorage<Mesh>>,
     ReadStorage<'a, Chunk>,
     ReadStorage<'a, ChunkStorage<u8>>,
+    ReadStorage<'a, Handle<Mesh>>,
     Write<'a, Option<WhiteMaterial>>,
-    WriteStorage<'a, Handle<Mesh>>,
-    WriteStorage<'a, Handle<Material>>,
+    Read<'a, LazyUpdate>,
   );
 
   fn run(
@@ -57,9 +57,9 @@ impl<'a, B: Backend> System<'a> for ChunkMeshGenerator<B> {
       mesh_storage,
       chunks,
       chunk_storages,
+      meshes,
       mut gen_resources,
-      mut meshes,
-      mut materials,
+      lazy_update,
     ): Self::SystemData,
   ) {
     let res = gen_resources.get_or_insert_with(|| {
@@ -79,7 +79,6 @@ impl<'a, B: Backend> System<'a> for ChunkMeshGenerator<B> {
       WhiteMaterial(white_material)
     });
 
-    let mut processed_chunks = Vec::<(Entity, Handle<Mesh>)>::new();
     for (entity, _, storage, _) in (&entities, &chunks, &chunk_storages, !&meshes)
       .join()
       .take(1)
@@ -161,11 +160,8 @@ impl<'a, B: Backend> System<'a> for ChunkMeshGenerator<B> {
         .into_owned();
       let mesh = loader.load_from_data(mesh_builder.into(), (), &mesh_storage);
 
-      processed_chunks.push((entity, mesh));
-    }
-    for (entity, mesh) in processed_chunks {
-      meshes.insert(entity, mesh).unwrap();
-      materials.insert(entity, res.0.clone()).unwrap();
+      lazy_update.insert(entity, mesh);
+      lazy_update.insert(entity, res.0.clone());
     }
   }
 }
