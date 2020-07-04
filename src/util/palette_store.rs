@@ -1,3 +1,4 @@
+use crate::util::integer_log2;
 use bitvec::prelude::*;
 
 const DEFAULT_CAPACITY: usize = 32;
@@ -14,7 +15,7 @@ const DEFAULT_CAPACITY: usize = 32;
 ///
 /// [post]: https://www.reddit.com/r/VoxelGameDev/comments/9yu8qy/palettebased_compression_for_chunked_discrete/
 ///
-/// # Example
+/// # Examples
 ///
 /// ```
 /// let mut store = PaletteStore::<u8>::new(16);
@@ -36,7 +37,7 @@ pub struct PaletteStore<T: Default + Copy + Eq> {
   size: usize,
   /// Underlying bit vector, storing `bits_per_entry` bits for each virtual element
   /// that represent an index into `entries`. Its size is always `size * bits_per_entry`.
-  bits: BitVec,
+  bits: BitVec<Lsb0>,
   /// Current number of bits for each virtual element in `bits`.
   bits_per_entry: usize,
   /// Vector which stores palette entries.
@@ -71,7 +72,7 @@ impl<T: Default + Copy + Eq> PaletteStore<T> {
   /// let mut storage = Self::new(size);
   /// storage.reserve(capacity);
   /// ```
-  pub fn new_with_capacity(size: usize, capacity: usize) -> Self {
+  pub fn with_capacity(size: usize, capacity: usize) -> Self {
     let mut storage = Self::new(size);
     storage.reserve(capacity);
     storage
@@ -101,7 +102,7 @@ impl<T: Default + Copy + Eq> PaletteStore<T> {
     let req_capacity = self.used_entries() + additional;
     if req_capacity > self.entries.len() {
       let num_bits = integer_log2(req_capacity.next_power_of_two());
-      self.set_bits_per_entry(num_bits);
+      self.set_bits_per_entry(num_bits as usize);
     }
   }
 
@@ -312,16 +313,6 @@ impl<T: Default + Copy + Eq> PaletteStore<T> {
   }
 }
 
-fn integer_log2(mut i: usize) -> usize {
-  let mut power = 0;
-  i >>= 1;
-  while i != 0 {
-    i >>= 1;
-    power += 1;
-  }
-  power
-}
-
 #[cfg(test)]
 mod tests {
   use super::*;
@@ -400,10 +391,10 @@ mod tests {
 
   #[test]
   fn bits_layout_in_memory() {
-    let mut storage = PaletteStore::<i32>::new_with_capacity(8, 8);
+    let mut storage = PaletteStore::<i32>::with_capacity(8, 8);
     assert_eq!(
-      storage.bits, // Element:         7   6   5   4   3   2   1   0
-      BitVec::<Local>::from_element(0b000_000_000_000_000_000_000_000)[..3 * 8]
+      storage.bits, // Element:        7   6   5   4   3   2   1   0
+      BitVec::<Lsb0>::from_element(0b000_000_000_000_000_000_000_000)[..3 * 8]
     );
 
     // Fill out all palette entries.
@@ -411,15 +402,15 @@ mod tests {
       storage.set(i, i as i32 * 32).unwrap();
     }
     assert_eq!(
-      storage.bits, // Element:         7   6   5   4   3   2   1   0
-      BitVec::<Local>::from_element(0b111_110_101_100_011_010_001_000)[..3 * 8]
+      storage.bits, // Element:        7   6   5   4   3   2   1   0
+      BitVec::<Lsb0>::from_element(0b111_110_101_100_011_010_001_000)[..3 * 8]
     );
 
     // Add yet another, new palette entry, causing palettes to resize.
     storage.set(0, i32::MAX).unwrap();
     assert_eq!(
-      storage.bits, // Element:          7    6    5    4    3    2    1    0
-      BitVec::<Local>::from_element(0b0111_0110_0101_0100_0011_0010_0001_1000)[..4 * 8]
+      storage.bits, // Element:         7    6    5    4    3    2    1    0
+      BitVec::<Lsb0>::from_element(0b0111_0110_0101_0100_0011_0010_0001_1000)[..4 * 8]
     );
 
     // Unuse all palette entries but 3 (including the default).
@@ -427,8 +418,8 @@ mod tests {
       storage.set(*i, 0).unwrap();
     }
     assert_eq!(
-      storage.bits, // Element:          7    6    5    4    3    2    1    0
-      BitVec::<Local>::from_element(0b0000_0000_0101_0000_0000_0010_0000_0000)[..4 * 8]
+      storage.bits, // Element:         7    6    5    4    3    2    1    0
+      BitVec::<Lsb0>::from_element(0b0000_0000_0101_0000_0000_0010_0000_0000)[..4 * 8]
     );
 
     // Shrink palette to fit 4 entries (2 bits each).
@@ -436,8 +427,8 @@ mod tests {
     // Previous palette entry 2 (0010) should now be 1 (01),
     //                    and 5 (0101) should now be 2 (10).
     assert_eq!(
-      storage.bits, // Element:        7  6  5  4  3  2  1  0
-      BitVec::<Local>::from_element(0b00_00_10_00_00_01_00_00)[..2 * 8]
+      storage.bits, // Element:       7  6  5  4  3  2  1  0
+      BitVec::<Lsb0>::from_element(0b00_00_10_00_00_01_00_00)[..2 * 8]
     );
   }
 }

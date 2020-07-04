@@ -1,14 +1,18 @@
+#[macro_use]
+extern crate bitflags;
+
 use {
-  crate::bloxel::{
-    chunk::{storage::*, *},
-    ChunkMeshGenerator,
+  crate::{
+    bloxel::{ChunkMeshGenerator, ChunkState, WorldGenerator},
+    util::ChunkedOctree,
   },
   amethyst::{
     assets::*,
     controls::{ControlTagPrefab, FlyControlBundle, HideCursor},
     core::{
-      math::Vector3,
+      bundle::SystemBundle,
       transform::{Transform, TransformBundle},
+      ArcThreadPool,
     },
     derive::PrefabData,
     ecs::prelude::*,
@@ -32,7 +36,6 @@ use {
     Error,
   },
   log::{error, info},
-  rand::prelude::*,
   serde::{Deserialize, Serialize},
 };
 
@@ -62,21 +65,11 @@ fn main() -> Result<(), Error> {
       "gltf_loader",
       &["scene_loader"],
     )
-    .with(AutoFovSystem::new(), "auto_fov", &["scene_loader"])
-    .with(ChunkMeshGenerator::default(), "", &[])
     .with_bundle(
       InputBundle::<StringBindings>::new().with_bindings_from_file(&config_path_bindings)?,
     )?
-    .with_bundle(
-      FlyControlBundle::<StringBindings>::new(
-        Some(String::from("move_x")),
-        Some(String::from("move_y")),
-        Some(String::from("move_z")),
-      )
-      .with_sensitivity(0.1, 0.1)
-      .with_speed(2.0),
-    )?
-    .with_bundle(TransformBundle::new().with_dep(&["fly_movement", "free_rotation"]))?
+    .with_bundle(TransformBundle::new())?
+    // .with_dep(&["fly_movement", "free_rotation"])
     .with_bundle(
       RenderingBundle::<DefaultBackend>::new()
         .with_plugin(RenderToWindow::from_config_path(config_path_display)?.with_clear(CLEAR_COLOR))
@@ -125,52 +118,52 @@ impl SimpleState for LoadingState {
         info!("Loading finished - moving to MainState");
         Trans::Switch(Box::new(MainState {
           scene: self.scene.take().unwrap(),
+          dispatcher: None,
         }))
       }
     }
   }
 }
 
-struct MainState {
+struct MainState<'a, 'b> {
   scene: Handle<Prefab<ScenePrefab>>,
+  dispatcher: Option<Dispatcher<'a, 'b>>,
 }
 
-impl SimpleState for MainState {
-  fn on_start(&mut self, data: StateData<'_, GameData<'_, '_>>) {
-    data.world.create_entity().with(self.scene.clone()).build();
+impl<'a, 'b> SimpleState for MainState<'a, 'b> {
+  fn on_start(&mut self, mut data: StateData<'_, GameData<'_, '_>>) {
+    let world = &mut data.world;
+    world.insert(ChunkedOctree::<ChunkState>::new(5));
 
-    let mut rng = thread_rng();
-    const CHUNK_SIZE: u32 = 16;
-    for x in -8..8 {
-      for z in -8..8 {
-        let chunk = Chunk {
-          pos: ChunkPos::new(x, -1, z),
-        };
-        let position = Vector3::new(
-          (chunk.pos.x * CHUNK_SIZE as i32) as f32,
-          (chunk.pos.y * CHUNK_SIZE as i32) as f32,
-          (chunk.pos.z * CHUNK_SIZE as i32) as f32,
-        );
-        let mut storage = PaletteStorageImpl::<u8>::new();
-        // TODO: Replace nested loop with single iterator that provides `(x, y, z, index)`?
-        for x in 0..CHUNK_LENGTH as i32 {
-          for y in 0..CHUNK_LENGTH as i32 {
-            for z in 0..CHUNK_LENGTH as i32 {
-              // SAFETY: Bounds should be safe due to loop only going over valid values.
-              let index = unsafe { Index::new_unchecked(x, y, z) };
-              storage.set(index, rng.gen_range(0, 2));
-            }
-          }
-        }
-        data
-          .world
-          .create_entity()
-          .with(chunk)
-          .with(Transform::from(position))
-          .with(ChunkStorage::new(storage))
-          .build();
-      }
+    let mut dispatcher_builder = DispatcherBuilder::new()
+      .with(AutoFovSystem::new(), "auto_fov", &[])
+      .with(ChunkMeshGenerator::default(), "chunk_mesh_gen", &[])
+      .with(WorldGenerator::default(), "world_gen", &[]);
+
+    FlyControlBundle::<StringBindings>::new(
+      Some(String::from("move_x")),
+      Some(String::from("move_y")),
+      Some(String::from("move_z")),
+    )
+    .with_sensitivity(0.1, 0.1)
+    .with_speed(20.0)
+    .build(world, &mut dispatcher_builder)
+    .unwrap();
+
+    let mut dispatcher = dispatcher_builder
+      .with_pool((*world.read_resource::<ArcThreadPool>()).clone())
+      .build();
+    dispatcher.setup(world);
+    self.dispatcher = Some(dispatcher);
+
+    world.create_entity().with(self.scene.clone()).build();
+  }
+
+  fn update(&mut self, data: &mut StateData<GameData>) -> SimpleTrans {
+    if let Some(dispatcher) = self.dispatcher.as_mut() {
+      dispatcher.dispatch(&data.world);
     }
+    Trans::None
   }
 
   fn handle_event(

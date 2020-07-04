@@ -19,11 +19,13 @@ use {
 #[derive(Default)]
 pub struct ChunkMeshGenerator;
 
+// TODO: Use lazy static for the material?
 pub struct WhiteMaterial(Handle<Material>);
 
 impl<'a> System<'a> for ChunkMeshGenerator {
   type SystemData = (
     Entities<'a>,
+    Read<'a, LazyUpdate>,
     ReadExpect<'a, Loader>,
     ReadExpect<'a, MaterialDefaults>,
     ReadExpect<'a, AssetStorage<Texture>>,
@@ -33,13 +35,13 @@ impl<'a> System<'a> for ChunkMeshGenerator {
     ReadStorage<'a, ChunkStorage<u8>>,
     ReadStorage<'a, Handle<Mesh>>,
     Write<'a, Option<WhiteMaterial>>,
-    Read<'a, LazyUpdate>,
   );
 
   fn run(
     &mut self,
     (
       entities,
+      lazy,
       loader,
       material_defaults,
       texture_storage,
@@ -49,7 +51,6 @@ impl<'a> System<'a> for ChunkMeshGenerator {
       chunk_storages,
       meshes,
       mut gen_resources,
-      lazy_update,
     ): Self::SystemData,
   ) {
     let res = gen_resources.get_or_insert_with(|| {
@@ -150,8 +151,8 @@ impl<'a> System<'a> for ChunkMeshGenerator {
         .into_owned();
       let mesh = loader.load_from_data(mesh_builder.into(), (), &mesh_storage);
 
-      lazy_update.insert(entity, mesh);
-      lazy_update.insert(entity, res.0.clone());
+      lazy.insert(entity, mesh);
+      lazy.insert(entity, res.0.clone());
     }
   }
 }

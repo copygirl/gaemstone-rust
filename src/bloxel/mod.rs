@@ -3,9 +3,11 @@ use std::{convert::TryFrom, ops};
 
 pub use self::chunk::ChunkPos;
 pub use self::mesh_generator::*;
+pub use self::world_generator::*;
 
 pub mod chunk;
 mod mesh_generator;
+mod world_generator;
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
 pub struct BlockPos {
