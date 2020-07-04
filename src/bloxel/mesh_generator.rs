@@ -72,7 +72,7 @@ impl<'a> System<'a> for ChunkMeshGenerator {
 
     for (entity, _, storage, _) in (&entities, &chunks, &chunk_storages, !&meshes)
       .join()
-      .take(1)
+      .take(4)
     {
       let mut indices = vec![];
       let mut pos = vec![];
@@ -143,16 +143,21 @@ impl<'a> System<'a> for ChunkMeshGenerator {
         }
       }
 
-      let mesh_builder = MeshBuilder::new()
-        .with_indices(indices)
-        .with_vertices(pos)
-        .with_vertices(norm)
-        .with_vertices(tex)
-        .into_owned();
-      let mesh = loader.load_from_data(mesh_builder.into(), (), &mesh_storage);
+      if indices.is_empty() {
+        // FIXME: This is a temporary solution.
+        entities.delete(entity).unwrap();
+      } else {
+        let mesh_builder = MeshBuilder::new()
+          .with_indices(indices)
+          .with_vertices(pos)
+          .with_vertices(norm)
+          .with_vertices(tex)
+          .into_owned();
+        let mesh = loader.load_from_data(mesh_builder.into(), (), &mesh_storage);
 
-      lazy.insert(entity, mesh);
-      lazy.insert(entity, res.0.clone());
+        lazy.insert(entity, mesh);
+        lazy.insert(entity, res.0.clone());
+      }
     }
   }
 }

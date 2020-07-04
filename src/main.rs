@@ -3,7 +3,7 @@ extern crate bitflags;
 
 use {
   crate::{
-    bloxel::{ChunkMeshGenerator, ChunkState, WorldGenerator},
+    bloxel::{chunk::ChunkState, ChunkMeshGenerator, WorldGenerator},
     util::ChunkedOctree,
   },
   amethyst::{

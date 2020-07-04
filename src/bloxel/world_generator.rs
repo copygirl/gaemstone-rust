@@ -6,17 +6,8 @@ use {
     ecs::prelude::*,
     renderer::visibility::BoundingSphere,
   },
-  rand::prelude::*,
+  noise::{NoiseFn, OpenSimplex},
 };
-
-bitflags! {
-  #[derive(Default)]
-  pub struct ChunkState: u8 {
-    const EXISTS = 0b00000001;
-    const GENERATED = 0b00000010;
-    const UPDATED = 0b00000100;
-  }
-}
 
 #[derive(Default)]
 pub struct WorldGenerator;
@@ -29,7 +20,7 @@ impl<'a> System<'a> for WorldGenerator {
   );
 
   fn run(&mut self, (entities, lazy, mut octree): Self::SystemData) {
-    const MAX_DISTANCE_SQUARED: f32 = 6.5 * 6.5;
+    const MAX_DISTANCE_SQUARED: f32 = 8.5 * 8.5;
 
     let nearest = octree
       .find(
@@ -56,7 +47,7 @@ impl<'a> System<'a> for WorldGenerator {
         |state| (*state & ChunkState::GENERATED) == Default::default(),
       )
       .search(ZOrder::new(0, 0, 0).unwrap())
-      .take(1)
+      .take(4)
       .collect::<Vec<_>>();
 
     for (pos, _) in nearest {
@@ -72,15 +63,20 @@ impl<'a> System<'a> for WorldGenerator {
         (z << CHUNK_LENGTH_BITS as i64) as f32,
       );
 
-      let mut rng = thread_rng();
+      let noise = OpenSimplex::new();
       let mut storage = PaletteStorageImpl::<u8>::new();
-      // TODO: Replace nested loop with single iterator that provides `(x, y, z, index)`?
       for x in 0..CHUNK_LENGTH as i32 {
         for y in 0..CHUNK_LENGTH as i32 {
           for z in 0..CHUNK_LENGTH as i32 {
-            // SAFETY: Bounds should be safe due to loop only going over valid values.
-            let index = unsafe { Index::new_unchecked(x, y, z) };
-            storage.set(index, rng.gen_range(0, 2));
+            let fx = (position.x as f64 + x as f64 + 0.5) / 16.0;
+            let fy = (position.y as f64 + y as f64 + 0.5) / 16.0;
+            let fz = (position.z as f64 + z as f64 + 0.5) / 16.0;
+            let bias = (fy / 4.0).max(0.0).min(2.0);
+            if noise.get([fx, fy, fz]) > bias {
+              // SAFETY: Bounds should be safe due to loop only going over valid values.
+              let index = unsafe { Index::new_unchecked(x, y, z) };
+              storage.set(index, 1u8);
+            }
           }
         }
       }

@@ -15,6 +15,15 @@ pub struct Chunk {
   pub pos: ChunkPos,
 }
 
+bitflags! {
+  #[derive(Default)]
+  pub struct ChunkState: u8 {
+    const EXISTS = 0b00000001;
+    const GENERATED = 0b00000010;
+    const MESH_UPDATED = 0b00000100;
+  }
+}
+
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
 pub struct ChunkPos {
   pub x: i32,
