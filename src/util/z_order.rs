@@ -2,10 +2,7 @@
 
 use {
   super::z_order_store::*,
-  std::{
-    cmp::Ordering,
-    {fmt::Debug, ops::*},
-  },
+  std::{cmp::Ordering, fmt::Debug, ops::*},
 };
 
 /// This struct wraps a primitive integer which represents an index into a space-filling curve
@@ -21,9 +18,11 @@ use {
 ///
 /// Index | Element | Bits | Min. Value | Max. Value
 /// :----:|:-------:|-----:|-----------:|----------:
+/// `u8`  |  `u8`   |    2 |          0 |          3
 /// `u16` |  `u8`   |    5 |          0 |         31
 /// `u32` |  `u16`  |   10 |          0 |       1023
 /// `u64` |  `u32`  |   21 |          0 |    2097151
+/// `i8`  |  `i8`   |    2 |         -2 |          1
 /// `i16` |  `i8`   |    5 |        -16 |         15
 /// `i32` |  `i16`  |   10 |       -512 |        511
 /// `i64` |  `i32`  |   21 |   -1048576 |    1048575
