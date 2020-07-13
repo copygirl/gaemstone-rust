@@ -21,7 +21,6 @@ impl<'a> System<'a> for WorldGenerator {
 
   fn run(&mut self, (entities, lazy, mut octree): Self::SystemData) {
     const MAX_DISTANCE_SQUARED: f32 = 8.5 * 8.5;
-
     let nearest = octree
       .find(
         |level, pos| {
@@ -44,7 +43,7 @@ impl<'a> System<'a> for WorldGenerator {
             None
           }
         },
-        |state| (*state & ChunkState::GENERATED) == Default::default(),
+        |state| (*state & ChunkState::GENERATED_ALL) != ChunkState::GENERATED_ALL,
       )
       .search(ZOrder::new(0, 0, 0).unwrap())
       .take(4)
@@ -52,8 +51,7 @@ impl<'a> System<'a> for WorldGenerator {
 
     for (pos, _) in nearest {
       let state = octree.get(0, pos);
-      // TODO: This should handle chunk entities which already exist.
-      assert_ne!(state & ChunkState::EXISTS, ChunkState::EXISTS);
+      // TODO: This should handle chunk entities which already exist, rather than creating them manually.
 
       let (x, y, z) = pos.into();
       let chunk_pos = ChunkPos::new(x as i32, y as i32, z as i32);
@@ -93,16 +91,22 @@ impl<'a> System<'a> for WorldGenerator {
         .with(BoundingSphere::new(CENTER.into(), RADIUS.sqrt()))
         .build();
 
-      let mask = ChunkState::EXISTS | ChunkState::GENERATED;
+      let mask_some = ChunkState::EXISTS_SOME | ChunkState::GENERATED_SOME;
+      let mask_all = ChunkState::EXISTS_ALL | ChunkState::GENERATED_ALL;
       octree.update(
         pos,
-        |state| *state = *state | mask,
+        |state| *state = *state | mask_all,
         |_level, children, parent| {
-          if children.iter().all(|s| *s & mask == mask) {
+          let mask = if children.iter().all(|s| *s & mask_all == mask_all) {
+            mask_all
+          } else {
+            mask_some
+          };
+          if *parent & mask == mask {
+            false
+          } else {
             *parent = *parent | mask;
             true
-          } else {
-            false
           }
         },
       );

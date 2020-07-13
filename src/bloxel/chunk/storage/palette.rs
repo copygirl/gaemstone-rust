@@ -1,8 +1,10 @@
-use super::{
-  super::{Index, CHUNK_SIZE},
-  BlockData, StorageImpl,
+use {
+  super::{
+    super::{Index, CHUNK_SIZE},
+    BlockData, StorageImpl,
+  },
+  crate::util::PaletteStore,
 };
-use crate::util::PaletteStore;
 
 pub struct PaletteStorageImpl<T: BlockData> {
   pub data: PaletteStore<T>,

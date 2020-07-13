@@ -1,5 +1,4 @@
-use crate::util::integer_log2;
-use bitvec::prelude::*;
+use {crate::util::integer_log2, bitvec::prelude::*};
 
 const DEFAULT_CAPACITY: usize = 32;
 

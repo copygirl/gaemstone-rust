@@ -1,26 +1,37 @@
-use amethyst::ecs::{Component, DenseVecStorage};
-use std::{convert::TryFrom, error::Error, fmt, ops};
-
-use super::Facing;
+use {
+  super::Facing,
+  amethyst::ecs::prelude::*,
+  std::{convert::TryFrom, error::Error, fmt, ops},
+};
 
 pub mod storage;
+
+mod lookup;
+pub use lookup::*;
 
 pub const CHUNK_LENGTH_BITS: usize = 4;
 pub const CHUNK_LENGTH: usize = 1 << CHUNK_LENGTH_BITS;
 pub const CHUNK_SIZE: usize = 1 << (CHUNK_LENGTH_BITS * 3);
 
-#[derive(Component)]
+#[derive(Copy, Clone)]
 pub struct Chunk {
   // pub level: Entity,
   pub pos: ChunkPos,
 }
 
+impl Component for Chunk {
+  type Storage = FlaggedStorage<Self>;
+}
+
 bitflags! {
   #[derive(Default)]
   pub struct ChunkState: u8 {
-    const EXISTS = 0b00000001;
-    const GENERATED = 0b00000010;
-    const MESH_UPDATED = 0b00000100;
+    const EXISTS_SOME = 0b00000001;
+    const EXISTS_ALL = 0b00000011;
+    const GENERATED_SOME = 0b00000100;
+    const GENERATED_ALL = 0b00001100;
+    const MESH_UPDATED_SOME = 0b00010000;
+    const MESH_UPDATED_ALL = 0b00110000;
   }
 }
 

@@ -1,7 +1,8 @@
-use amethyst::ecs::{Component, DenseVecStorage};
-use std::sync::RwLock;
-
-use super::Index;
+use {
+  super::Index,
+  amethyst::ecs::{Component, DenseVecStorage},
+  std::sync::RwLock,
+};
 
 pub use palette::*;
 
